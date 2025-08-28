@@ -64,7 +64,6 @@ build/
 *.exe~
 *.test
 *.out
-go.sum
 
 # Project-specific sensitive files #
 config.json
