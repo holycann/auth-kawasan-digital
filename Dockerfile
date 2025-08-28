@@ -10,11 +10,11 @@ RUN apk add --no-cache \
     curl \
     build-base
 
-# Copy go mod files
-COPY go.mod ./
+# Copy go mod and sum files
+COPY go.mod go.sum ./
 
 # Download dependencies
-RUN go mod tidy
+RUN go mod download && go mod verify
 
 # Copy the source code
 COPY . .

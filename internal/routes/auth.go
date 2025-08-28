@@ -15,34 +15,30 @@ func AuthRoutes(
 	rateLimiter *middleware.RateLimiter,
 	authHandler *auth.AuthHandler,
 ) {
-	// Public routes (with rate limiting)
-	publicGroup := r.Group("/auth")
-	{
-		// Apply rate limiting to public routes
-		publicGroup.POST("/register", func(c *gin.Context) {
-			rateLimiter.Handle(func(w http.ResponseWriter, r *http.Request) {
-				authHandler.Register(c)
-			})(c.Writer, c.Request)
-		})
-		publicGroup.POST("/login", func(c *gin.Context) {
-			rateLimiter.Handle(func(w http.ResponseWriter, r *http.Request) {
-				authHandler.Login(c)
-			})(c.Writer, c.Request)
-		})
-		publicGroup.POST("/reset-password", func(c *gin.Context) {
-			rateLimiter.Handle(func(w http.ResponseWriter, r *http.Request) {
-				authHandler.ResetPassword(c)
-			})(c.Writer, c.Request)
-		})
-		publicGroup.POST("/refresh-token", func(c *gin.Context) {
-			rateLimiter.Handle(func(w http.ResponseWriter, r *http.Request) {
-				authHandler.RefreshToken(c)
-			})(c.Writer, c.Request)
-		})
-	}
+	// Apply rate limiting to public routes
+	r.POST("/register", func(c *gin.Context) {
+		rateLimiter.Handle(func(w http.ResponseWriter, r *http.Request) {
+			authHandler.Register(c)
+		})(c.Writer, c.Request)
+	})
+	r.POST("/login", func(c *gin.Context) {
+		rateLimiter.Handle(func(w http.ResponseWriter, r *http.Request) {
+			authHandler.Login(c)
+		})(c.Writer, c.Request)
+	})
+	r.POST("/reset-password", func(c *gin.Context) {
+		rateLimiter.Handle(func(w http.ResponseWriter, r *http.Request) {
+			authHandler.ResetPassword(c)
+		})(c.Writer, c.Request)
+	})
+	r.POST("/refresh-token", func(c *gin.Context) {
+		rateLimiter.Handle(func(w http.ResponseWriter, r *http.Request) {
+			authHandler.RefreshToken(c)
+		})(c.Writer, c.Request)
+	})
 
 	// Protected routes (require JWT authentication)
-	protectedGroup := r.Group("/auth")
+	protectedGroup := r.Group("")
 	protectedGroup.Use(jwtMiddleware.VerifyJWT())
 	{
 		protectedGroup.POST("/logout", authHandler.Logout)
