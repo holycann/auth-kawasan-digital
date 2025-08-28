@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log/slog"
@@ -8,51 +9,52 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"sync"
 
 	"github.com/lmittmann/tint"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
-// LogLevel defines available log levels
-type LogLevel int
+// LogLevel maps to standard slog levels for simplicity
+type LogLevel slog.Level
 
 const (
-	DebugLevel LogLevel = iota
-	InfoLevel
-	WarnLevel
-	ErrorLevel
-	FatalLevel
+	DebugLevel = LogLevel(slog.LevelDebug)
+	InfoLevel  = LogLevel(slog.LevelInfo)
+	WarnLevel  = LogLevel(slog.LevelWarn)
+	ErrorLevel = LogLevel(slog.LevelError)
+	FatalLevel = LogLevel(slog.LevelError + 1)
 )
 
 // LoggerConfig contains logger configuration
 type LoggerConfig struct {
-	// Log file configuration
-	Path       string
-	MaxSize    int  // Maximum log file size in MB
-	MaxBackups int  // Maximum number of log file backups
-	MaxAge     int  // Maximum age of log file in days
-	Compress   bool // Whether old log files will be compressed
-
-	// Logging configuration
-	Level       LogLevel // Minimum log level to be recorded
-	Development bool     // Development mode for more detailed logs
+	Path        string
+	Level       LogLevel
+	Development bool
+	MaxSize     int
+	MaxBackups  int
+	MaxAge      int
+	Compress    bool
 }
 
-// Logger is a wrapper for slog with additional features
+// Logger wraps slog with additional features
 type Logger struct {
 	logger     *slog.Logger
-	config     LoggerConfig
-	mu         sync.Mutex
 	fileWriter *lumberjack.Logger
 }
 
-// NewLogger creates a new Logger instance with the given configuration
+// NewLogger creates a new Logger instance
 func NewLogger(cfg LoggerConfig) *Logger {
-	// Validate and set default configuration
-	cfg = validateConfig(cfg)
+	// Set default configuration
+	if cfg.Path == "" {
+		cfg.Path = filepath.Join("logs", "app.log")
+	}
 
-	// Prepare file writer
+	// Ensure log directory exists
+	if err := os.MkdirAll(filepath.Dir(cfg.Path), 0755); err != nil {
+		fmt.Printf("Failed to create log directory: %v\n", err)
+	}
+
+	// Default log file settings
 	fileWriter := &lumberjack.Logger{
 		Filename:   cfg.Path,
 		MaxSize:    cfg.MaxSize,
@@ -61,150 +63,96 @@ func NewLogger(cfg LoggerConfig) *Logger {
 		Compress:   cfg.Compress,
 	}
 
-	// Combine file writer and stdout
+	// Use defaults if not set
+	if fileWriter.MaxSize == 0 {
+		fileWriter.MaxSize = 100
+	}
+	if fileWriter.MaxBackups == 0 {
+		fileWriter.MaxBackups = 3
+	}
+	if fileWriter.MaxAge == 0 {
+		fileWriter.MaxAge = 30
+	}
+
+	// Combine file and stdout
 	multiWriter := io.MultiWriter(os.Stdout, fileWriter)
 
-	// Create handler with tint for color and format
-	handler := createHandler(multiWriter, cfg)
-
-	// Create logger
-	slogLogger := slog.New(handler)
-
-	return &Logger{
-		logger:     slogLogger,
-		config:     cfg,
-		fileWriter: fileWriter,
-	}
-}
-
-// validateConfig validates and sets default logger configuration
-func validateConfig(cfg LoggerConfig) LoggerConfig {
-	// Set defaults if not specified
-	if cfg.Path == "" {
-		cfg.Path = filepath.Join("logs", "app.log")
-	}
-
-	// Create log directory if it doesn't exist
-	if err := os.MkdirAll(filepath.Dir(cfg.Path), 0755); err != nil {
-		fmt.Printf("Failed to create log directory: %v\n", err)
-	}
-
-	// Default configuration
-	if cfg.MaxSize == 0 {
-		cfg.MaxSize = 100 // 100 MB
-	}
-	if cfg.MaxBackups == 0 {
-		cfg.MaxBackups = 3
-	}
-	if cfg.MaxAge == 0 {
-		cfg.MaxAge = 30 // 30 days
-	}
-
-	return cfg
-}
-
-// createHandler creates a log handler with customized options
-func createHandler(writer io.Writer, cfg LoggerConfig) slog.Handler {
-	// Determine log level
-	var level slog.Level
-	switch cfg.Level {
-	case DebugLevel:
-		level = slog.LevelDebug
-	case InfoLevel:
-		level = slog.LevelInfo
-	case WarnLevel:
-		level = slog.LevelWarn
-	case ErrorLevel:
-		level = slog.LevelError
-	default:
-		level = slog.LevelInfo
-	}
-
-	// Handler options
+	// Create handler
 	opts := &tint.Options{
-		Level:      level,
+		Level:      slog.Level(cfg.Level),
 		TimeFormat: "2006-01-02 15:04:05",
 	}
 
-	// Add development options
 	if cfg.Development {
 		opts.AddSource = true
 	}
 
-	return tint.NewHandler(writer, opts)
+	handler := tint.NewHandler(multiWriter, opts)
+	slogLogger := slog.New(handler)
+
+	return &Logger{
+		logger:     slogLogger,
+		fileWriter: fileWriter,
+	}
 }
 
-// withCallerInfo adds caller information to the log
-func (l *Logger) withCallerInfo(args ...any) []any {
-	if l.config.Development {
-		// Get caller information
-		_, file, line, ok := runtime.Caller(2)
-		if ok {
-			callerInfo := fmt.Sprintf("%s:%d", shortenPath(file), line)
-			args = append([]any{slog.String("caller", callerInfo)}, args...)
+// log is a generic logging method to reduce code duplication
+func (l *Logger) log(level slog.Level, msg string, args ...any) {
+	handler := l.logger.Handler()
+	if handler.Enabled(context.Background(), level) {
+		pc, file, line, _ := runtime.Caller(2)
+		funcName := runtime.FuncForPC(pc).Name()
+
+		// Add caller info for development mode
+		if opts, ok := handler.(interface{ Options() *tint.Options }); ok {
+			tintOpts := opts.Options()
+			if tintOpts.AddSource {
+				callerInfo := fmt.Sprintf("%s:%d (%s)", shortenPath(file), line, funcName)
+				args = append([]any{slog.String("caller", callerInfo)}, args...)
+			}
+		}
+
+		switch level {
+		case slog.LevelDebug:
+			l.logger.Debug(msg, args...)
+		case slog.LevelInfo:
+			l.logger.Info(msg, args...)
+		case slog.LevelWarn:
+			l.logger.Warn(msg, args...)
+		case slog.LevelError:
+			l.logger.Error(msg, args...)
 		}
 	}
-	return args
-}
-
-// shortenPath shortens file path
-func shortenPath(path string) string {
-	// Get last 2 directories
-	parts := strings.Split(path, string(os.PathSeparator))
-	if len(parts) > 2 {
-		return filepath.Join(parts[len(parts)-2], parts[len(parts)-1])
-	}
-	return path
 }
 
 // Debug logs a debug message
 func (l *Logger) Debug(msg string, args ...any) {
-	if l.config.Level <= DebugLevel {
-		l.mu.Lock()
-		defer l.mu.Unlock()
-		l.logger.Debug(msg, l.withCallerInfo(args...)...)
-	}
+	l.log(slog.LevelDebug, msg, args...)
 }
 
 // Info logs an info message
 func (l *Logger) Info(msg string, args ...any) {
-	if l.config.Level <= InfoLevel {
-		l.mu.Lock()
-		defer l.mu.Unlock()
-		l.logger.Info(msg, l.withCallerInfo(args...)...)
-	}
+	l.log(slog.LevelInfo, msg, args...)
 }
 
 // Warn logs a warning message
 func (l *Logger) Warn(msg string, args ...any) {
-	if l.config.Level <= WarnLevel {
-		l.mu.Lock()
-		defer l.mu.Unlock()
-		l.logger.Warn(msg, l.withCallerInfo(args...)...)
-	}
+	l.log(slog.LevelWarn, msg, args...)
 }
 
 // Error logs an error message
 func (l *Logger) Error(msg string, args ...any) {
-	if l.config.Level <= ErrorLevel {
-		l.mu.Lock()
-		defer l.mu.Unlock()
-		l.logger.Error(msg, l.withCallerInfo(args...)...)
-	}
+	l.log(slog.LevelError, msg, args...)
 }
 
 // Fatal logs a fatal message and exits the program
 func (l *Logger) Fatal(msg string, args ...any) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	l.logger.Error(msg, l.withCallerInfo(args...)...)
+	l.log(slog.LevelError, msg, args...)
 	os.Exit(1)
 }
 
 // Rotate performs manual log file rotation
 func (l *Logger) Rotate() error {
-	l.mu.Lock()
-	defer l.mu.Unlock()
 	return l.fileWriter.Rotate()
 }
 
@@ -213,12 +161,20 @@ func (l *Logger) Close() error {
 	return l.fileWriter.Close()
 }
 
-// Example of default configuration usage
+// shortenPath shortens file path
+func shortenPath(path string) string {
+	parts := strings.Split(path, string(os.PathSeparator))
+	if len(parts) > 2 {
+		return filepath.Join(parts[len(parts)-2], parts[len(parts)-1])
+	}
+	return path
+}
+
+// DefaultLogger creates a standard logger
 func DefaultLogger() *Logger {
 	return NewLogger(LoggerConfig{
-		Path:        filepath.Join("logs", "app.log"),
-		Level:       InfoLevel,
-		Development: false,
+		Path:  filepath.Join("logs", "app.log"),
+		Level: InfoLevel,
 	})
 }
 

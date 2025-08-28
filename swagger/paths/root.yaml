@@ -1,0 +1,107 @@
+# Root-Level and System Endpoints
+paths:
+  /:
+    get:
+      summary: API Root Endpoint
+      description: Provides basic information about the API
+      tags:
+        - System
+      operationId: getRootEndpoint
+      responses:
+        "200":
+          description: API information successfully retrieved
+          schema:
+            type: object
+            properties:
+              name:
+                type: string
+                example: "Kawasan Digital Authentication API"
+              version:
+                type: string
+                example: "1.0.0"
+              description:
+                type: string
+                example: "Authentication and User Management API"
+              status:
+                type: string
+                example: "operational"
+              documentation:
+                type: string
+                format: uri
+                example: "https://github.com/holycann/auth-kawasan-digital"
+        "400":
+          $ref: "#/responses/BadRequest"
+        "401":
+          $ref: "#/responses/Unauthorized"
+        "403":
+          $ref: "#/responses/Forbidden"
+        "404":
+          $ref: "#/responses/NotFound"
+        "500":
+          $ref: "#/responses/ServerError"
+
+  /health:
+    get:
+      summary: Comprehensive Health Check
+      description: Provides detailed system health status
+      tags:
+        - Health
+      operationId: getHealthCheck
+      responses:
+        "200":
+          description: System is healthy
+          schema:
+            type: object
+            properties:
+              status:
+                type: string
+                example: "healthy"
+              uptime:
+                type: string
+                description: Total system uptime
+              components:
+                type: object
+                properties:
+                  database:
+                    type: string
+                    enum: ["healthy", "degraded", "unhealthy"]
+                  cache:
+                    type: string
+                    enum: ["healthy", "degraded", "unhealthy"]
+                  authentication:
+                    type: string
+                    enum: ["healthy", "degraded", "unhealthy"]
+        "400":
+          $ref: "#/responses/BadRequest"
+        "401":
+          $ref: "#/responses/Unauthorized"
+        "403":
+          $ref: "#/responses/Forbidden"
+        "404":
+          $ref: "#/responses/NotFound"
+        "500":
+          $ref: "#/responses/ServerError"
+
+  /metrics:
+    get:
+      summary: Prometheus Metrics Endpoint
+      description: Exposes comprehensive system metrics for monitoring
+      tags:
+        - Metrics
+      operationId: getPrometheusMetrics
+      responses:
+        "200":
+          description: Metrics successfully retrieved
+          schema:
+            type: string
+            description: Prometheus metrics in text format
+        "400":
+          $ref: "#/responses/BadRequest"
+        "401":
+          $ref: "#/responses/Unauthorized"
+        "403":
+          $ref: "#/responses/Forbidden"
+        "404":
+          $ref: "#/responses/NotFound"
+        "500":
+          $ref: "#/responses/ServerError"

@@ -1,0 +1,112 @@
+swagger: "2.0"
+info:
+  title: Kawasan Digital Authentication API
+  description: |
+    Authentication API for Kawasan Digital
+
+    ## Features
+    - Secure user authentication
+    - Multi-factor authentication
+    - Role-based access control
+
+  version: "1.0.0"
+  contact:
+    name: Kawasan Digital Backend Team
+    email: support@example.com
+    url: https://github.com/holycann/auth-kawasan-digital
+
+# Base URL for the API
+host: localhost:8080
+basePath: /api/v1
+schemes:
+  - http
+
+# Global security definition
+securityDefinitions:
+  Bearer:
+    type: apiKey
+    name: Authorization
+    in: header
+    description: Enter the token with the `Bearer ` prefix, e.g. "Bearer abcdef123456"
+
+# Global security (optional, can be overridden per endpoint)
+security:
+  - Bearer: []
+
+# Common response definitions
+responses:
+  BadRequest:
+    description: Bad Request - Validation Failed
+    schema:
+      $ref: "#/definitions/ErrorResponse"
+  Unauthorized:
+    description: Unauthorized - Authentication Required
+    schema:
+      $ref: "#/definitions/ErrorResponse"
+  Forbidden:
+    description: Forbidden - Insufficient Permissions
+    schema:
+      $ref: "#/definitions/ErrorResponse"
+  NotFound:
+    description: Not Found - Resource Does Not Exist
+    schema:
+      $ref: "#/definitions/ErrorResponse"
+  ServerError:
+    description: Internal Server Error
+    schema:
+      $ref: "#/definitions/ErrorResponse"
+
+# Common definitions
+definitions:
+  ErrorResponse:
+    type: object
+    properties:
+      success:
+        type: boolean
+        example: false
+      request_id:
+        type: string
+        description: Unique request identifier for tracing
+      timestamp:
+        type: string
+        format: date-time
+      message:
+        type: string
+      error:
+        type: object
+        properties:
+          code:
+            type: string
+          details:
+            type: string
+
+  AuthenticationResponse:
+    type: object
+    properties:
+      access_token:
+        type: string
+      refresh_token:
+        type: string
+      expires_at:
+        type: integer
+        format: int64
+
+# Global parameters
+parameters:
+  AuthorizationHeader:
+    name: Authorization
+    in: header
+    description: Bearer token for authentication
+    required: true
+    type: string
+
+# Tags for API documentation
+tags:
+  - name: Authentication
+    description: User authentication endpoints
+  - name: Health
+    description: System health and status endpoints
+  - name: Metrics
+    description: Prometheus metrics endpoints
+  - name: System
+    description: Global system configuration and information endpoints

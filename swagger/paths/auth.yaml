@@ -1,0 +1,226 @@
+# Authentication Endpoints
+paths:
+  /auth/register:
+    post:
+      summary: User Registration
+      description: Register a new user with email and password
+      tags:
+        - Authentication
+      operationId: registerUser
+      parameters:
+        - in: body
+          name: body
+          required: true
+          schema:
+            type: object
+            required:
+              - email
+              - password
+            properties:
+              email:
+                type: string
+                format: email
+              password:
+                type: string
+                format: password
+                minLength: 8
+                maxLength: 72
+              username:
+                type: string
+              full_name:
+                type: string
+              address:
+                type: string
+              birthday:
+                type: string
+              phone_number:
+                type: string
+              role:
+                type: string
+                default: "user"
+      responses:
+        "200":
+          description: User successfully registered
+          schema:
+            $ref: "#/definitions/AuthenticationResponse"
+        "400":
+          $ref: "#/responses/BadRequest"
+        "401":
+          $ref: "#/responses/Unauthorized"
+        "403":
+          $ref: "#/responses/Forbidden"
+        "404":
+          $ref: "#/responses/NotFound"
+        "500":
+          $ref: "#/responses/ServerError"
+
+  /auth/login:
+    post:
+      summary: User Login
+      description: Authenticate user with email and password
+      tags:
+        - Authentication
+      operationId: loginUser
+      parameters:
+        - in: body
+          name: body
+          required: true
+          schema:
+            type: object
+            required:
+              - email
+              - password
+            properties:
+              email:
+                type: string
+                format: email
+              password:
+                type: string
+                format: password
+                minLength: 8
+                maxLength: 72
+      responses:
+        "200":
+          description: User successfully logged in
+          schema:
+            $ref: "#/definitions/AuthenticationResponse"
+        "400":
+          $ref: "#/responses/BadRequest"
+        "401":
+          $ref: "#/responses/Unauthorized"
+        "403":
+          $ref: "#/responses/Forbidden"
+        "404":
+          $ref: "#/responses/NotFound"
+        "500":
+          $ref: "#/responses/ServerError"
+
+  /auth/logout:
+    post:
+      summary: User Logout
+      description: Terminate current user session
+      tags:
+        - Authentication
+      operationId: logoutUser
+      security:
+        - Bearer: []
+      responses:
+        "200":
+          description: User successfully logged out
+        "401":
+          $ref: "#/responses/Unauthorized"
+        "403":
+          $ref: "#/responses/Forbidden"
+        "404":
+          $ref: "#/responses/NotFound"
+        "500":
+          $ref: "#/responses/ServerError"
+
+  /auth/refresh-token:
+    post:
+      summary: Refresh Authentication Token
+      description: Obtain a new access token using a refresh token
+      tags:
+        - Authentication
+      operationId: refreshAuthToken
+      parameters:
+        - in: body
+          name: body
+          required: true
+          schema:
+            type: object
+            required:
+              - refresh_token
+            properties:
+              refresh_token:
+                type: string
+      responses:
+        "200":
+          description: Token successfully refreshed
+          schema:
+            $ref: "#/definitions/AuthenticationResponse"
+        "400":
+          $ref: "#/responses/BadRequest"
+        "401":
+          $ref: "#/responses/Unauthorized"
+        "403":
+          $ref: "#/responses/Forbidden"
+        "404":
+          $ref: "#/responses/NotFound"
+        "500":
+          $ref: "#/responses/ServerError"
+
+  /auth/reset-password:
+    post:
+      summary: Initiate Password Reset
+      description: Send password reset link to user's email
+      tags:
+        - Authentication
+      operationId: initiatePasswordReset
+      parameters:
+        - in: body
+          name: body
+          required: true
+          schema:
+            type: object
+            required:
+              - email
+            properties:
+              email:
+                type: string
+                format: email
+      responses:
+        "200":
+          description: Password reset link sent successfully
+        "400":
+          $ref: "#/responses/BadRequest"
+        "401":
+          $ref: "#/responses/Unauthorized"
+        "403":
+          $ref: "#/responses/Forbidden"
+        "404":
+          $ref: "#/responses/NotFound"
+        "500":
+          $ref: "#/responses/ServerError"
+
+  /auth/mfa/setup:
+    post:
+      summary: Multi-Factor Authentication Setup
+      description: Enroll a new multi-factor authentication method
+      tags:
+        - Authentication
+      operationId: setupMultiFactorAuth
+      security:
+        - Bearer: []
+      parameters:
+        - in: body
+          name: body
+          required: true
+          schema:
+            type: object
+            required:
+              - factor_type
+              - friendly_name
+            properties:
+              factor_type:
+                type: string
+                enum: ["totp"]
+              friendly_name:
+                type: string
+              issuer:
+                type: string
+              code:
+                type: string
+      responses:
+        "200":
+          description: MFA method successfully enrolled
+        "400":
+          $ref: "#/responses/BadRequest"
+        "401":
+          $ref: "#/responses/Unauthorized"
+        "403":
+          $ref: "#/responses/Forbidden"
+        "404":
+          $ref: "#/responses/NotFound"
+        "500":
+          $ref: "#/responses/ServerError"
